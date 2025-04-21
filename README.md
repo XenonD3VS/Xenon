@@ -51,7 +51,7 @@ Join our Discord or contact Xenon directly via our website’s contact form.
 
 Follow us for news, upcoming releases, and community showcases:
 
-- 🌍 Website: [https://www.XenonD3VS.com](https://www.XenonD3VS.com)
+- 🌍 Website: *coming soon*
 - 💬 Discord: *coming soon*
 - 📸 Instagram: *coming soon*
 
