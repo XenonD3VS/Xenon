@@ -35,7 +35,7 @@ Each purchase/download comes with:
 
 ## 🌐 Official Website
 
-👉 [Visit XenonD3VS.com](https://www.XenonD3VS.com)  
+👉 [Visit Discord server RIGHT NOW!](https://discord.gg/xnpkcneQBh)  
 Your hub for updates, new releases, and support.
 
 ---
