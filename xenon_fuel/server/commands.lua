@@ -18,6 +18,15 @@ local function requireAdmin(source)
     return false
 end
 
+if commands.panel then
+    lib.addCommand(commands.panel, {
+        help = L('cmd_panel_help'),
+    }, function(source)
+        if source == 0 or not requireAdmin(source) then return end
+        TriggerClientEvent('xenon_fuel:client:openAdmin', source)
+    end)
+end
+
 if commands.setFuel then
     lib.addCommand(commands.setFuel, {
         help = L('cmd_setfuel_help'),
@@ -31,6 +40,7 @@ if commands.setFuel then
         end
         local amount = Utils.Clamp(args.amount or 100, 0, 100)
         Fuel.Set(vehicle, amount)
+        Admin.Audit(source, 'set_fuel', Utils.TrimPlate(GetVehicleNumberPlateText(vehicle)), amount)
         reply(source, L('cmd_setfuel_done', amount), 'success')
     end)
 end
@@ -44,8 +54,8 @@ if commands.resetStation then
         local station = Stations.Get(args.station)
         if not station then return reply(source, L('error_invalid_station'), 'error') end
         Ownership.Reset(station)
+        Admin.Audit(source, 'reset_station', station.id, 'command')
         reply(source, L('cmd_reset_done', station.cfg.label), 'success')
-        print(('^3[xenon_fuel]^7 Benzinka %s byla resetována (admin %s)'):format(station.id, tostring(source)))
     end)
 end
 

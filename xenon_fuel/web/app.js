@@ -1789,6 +1789,460 @@ Views.offer = {
     },
 };
 
+/* ==========================================================================
+   OKNO: Admin panel
+   ========================================================================== */
+Views.admin = {
+    d: null,
+    st: null,
+
+    open(data) {
+        this.d = data;
+        this.st = {
+            tab: 'overview', enter: true, busy: false, expanded: null, search: '', filter: 'all',
+            confirmReset: null, fuelAmount: 100, radius: 25, plate: null,
+        };
+        const win = Modals.open('admin', 'mgmt admin', '<div class="mgmt-side"></div><div class="mgmt-main"></div>');
+        win.addEventListener('click', (e) => this.onClick(e));
+        win.addEventListener('input', (e) => this.onInput(e));
+        win.addEventListener('mousemove', (e) => this.onHover(e));
+        win.addEventListener('mouseleave', () => this.hideTip());
+        this.render();
+    },
+
+    onClose() { this.d = null; },
+
+    tabs() {
+        const live = this.d.live || { sessions: [], jobs: [], duty: [] };
+        const liveCount = live.sessions.length + live.jobs.length + live.duty.length;
+        return [
+            { id: 'overview', icon: 'layout-dashboard', label: t('admin_tab_overview') },
+            { id: 'stations', icon: 'store', label: t('admin_tab_stations'), badge: (this.d.stations || []).filter((x) => x.owned).length },
+            { id: 'orders', icon: 'package', label: t('admin_tab_orders'), badge: (this.d.orders || []).length },
+            { id: 'live', icon: 'timer', label: t('admin_tab_live'), badge: liveCount },
+            { id: 'fuel', icon: 'fuel', label: t('admin_tab_fuel') },
+            { id: 'logs', icon: 'scroll-text', label: t('admin_tab_logs') },
+        ];
+    },
+
+    async action(name, payload = {}, opts = {}) {
+        if (this.st.busy) return null;
+        this.st.busy = true;
+        this.setBusy(true, opts.button);
+        const res = await post('admin:action', { action: name, payload });
+        if (!this.d) return res;
+        this.st.busy = false;
+        this.setBusy(false);
+        if (res && res.update) Object.assign(this.d, res.update);
+        if (!opts.noRender) this.render();
+        return res;
+    },
+
+    setBusy(on, button) {
+        const win = Modals.get('admin');
+        if (!win) return;
+        const main = $('.mgmt-main', win);
+        const bar = $('.win-progress', main);
+        if (on && !bar) main.insertAdjacentHTML('afterbegin', '<div class="win-progress"></div>');
+        if (!on && bar) bar.remove();
+        if (button) button.classList.add('is-loading');
+        if (!on) $$('.is-loading', win).forEach((el) => el.classList.remove('is-loading'));
+    },
+
+    render() {
+        const win = Modals.get('admin');
+        if (!win || !this.d) return;
+        const tabs = this.tabs();
+        const current = tabs.find((x) => x.id === this.st.tab) || tabs[0];
+        const subs = { overview: t('admin_sub_overview'), stations: t('admin_sub_stations', (this.d.stations || []).length), orders: t('admin_sub_orders'), live: t('admin_sub_live'), fuel: t('admin_sub_fuel'), logs: t('admin_sub_logs', S.cfg.adminLogLimit || 100) };
+        $('.mgmt-side', win).innerHTML = `
+            <div class="mgmt-brand">
+                <div class="win-mark">${icon('shield')}</div>
+                <div class="s-name">${esc(t('admin_title'))}</div>
+                <div class="s-type">xenon_fuel</div>
+                <div class="status-toggle"><span class="pill accent">${esc(t('admin_badge'))}</span></div>
+            </div>
+            <div class="nav">${tabs.map((x) => `<button class="${x.id === current.id ? 'active' : ''}" data-tab="${x.id}">${icon(x.icon)}<span>${esc(x.label)}</span>${x.badge ? `<span class="badge">${x.badge}</span>` : ''}</button>`).join('')}</div>
+            <div class="viewer"><div class="avatar">${esc(initials(this.d.admin && this.d.admin.name))}</div>
+                <div><div class="v-name">${esc(this.d.admin ? this.d.admin.name : '')}</div><div class="v-role">${esc(t('admin_role'))}</div></div></div>`;
+        $('.mgmt-main', win).innerHTML = `
+            <div class="win-head">
+                <div><div class="title">${esc(current.label)}</div><div class="sub">${esc(subs[current.id] || '')}</div></div>
+                <div class="spacer"></div>
+                <button class="icon-btn" data-act="refresh" title="${esc(t('refresh'))}">${icon('refresh-cw')}</button>
+                ${closeButton('admin')}
+            </div>
+            <div class="mgmt-content${this.st.enter ? ' tab-enter' : ''}">${this.renderTab(current.id)}</div>`;
+        this.st.enter = false;
+    },
+
+    renderTab(tab) {
+        switch (tab) {
+            case 'overview': return this.tabOverview();
+            case 'stations': return this.tabStations();
+            case 'orders': return this.tabOrders();
+            case 'live': return this.tabLive();
+            case 'fuel': return this.tabFuel();
+            case 'logs': return this.tabLogs();
+            default: return '';
+        }
+    },
+
+    /* --------------------------------------------- Přehled */
+    tabOverview() {
+        const o = this.d.overview || {};
+        const top = o.top || [];
+        const maxTop = Math.max(1, ...top.map((x) => x.revenue));
+        return `
+            <div class="grid g-4">
+                <div class="card kpi highlight"><div class="k-label">${icon('store')}${esc(t('admin_kpi_stations'))}</div><div class="k-val num">${o.owned || 0} <span class="faint" style="font-size:16px">/ ${o.stations || 0}</span></div><div class="k-sub">${esc(t('admin_kpi_stations_sub', o.closed || 0))}</div></div>
+                <div class="card kpi"><div class="k-label">${icon('wallet')}${esc(t('admin_kpi_balances'))}</div><div class="k-val num">${fmtMoney(o.balances || 0)}</div><div class="k-sub">${esc(t('admin_kpi_balances_sub'))}</div></div>
+                <div class="card kpi"><div class="k-label">${icon('chart-line')}${esc(t('kpi_revenue'))}</div><div class="k-val num">${fmtMoney(o.revenue || 0)}</div><div class="k-sub">${esc(t('admin_kpi_revenue_sub', fmtNum(o.customers || 0), fmtNum(o.liters || 0)))}</div></div>
+                <div class="card kpi"><div class="k-label">${icon('users')}${esc(t('admin_kpi_online'))}</div><div class="k-val num">${o.players || 0}</div><div class="k-sub">${esc(t('admin_kpi_online_sub', o.sessions || 0, o.jobs || 0, o.onDuty || 0))}</div></div>
+            </div>
+            <div class="grid g-main" style="margin-top:14px">
+                <div class="card chart-card"><div class="card-head"><h3>${esc(t('admin_chart_title', (o.chart || []).length))}</h3></div>
+                    <div class="card-body">${this.chart(o.chart || [])}</div></div>
+                <div class="card"><div class="card-head"><h3>${esc(t('admin_top_title'))}</h3></div>
+                    <div class="card-body"><div class="top-list">${top.length ? top.map((x, i) => `
+                        <div class="top-item"><span class="top-rank num">${i + 1}</span>
+                            <div style="flex:1;min-width:0"><div class="top-row"><span class="top-name">${esc(x.label)}</span><span class="num strong">${fmtMoney(x.revenue)}</span></div>
+                            <div class="stock-bar" style="--c:var(--accent)"><div class="fill" style="width:${x.revenue / maxTop * 100}%"></div></div>
+                            <div class="s-meta"><span>${esc(x.owned ? t('admin_owned') : t('public'))}</span></div></div></div>`).join('') : `<div class="empty">${icon('chart-line')}<div>${esc(t('chart_empty'))}</div></div>`}</div></div></div>
+            </div>
+            <div class="grid g-3" style="margin-top:14px">
+                <button class="card quick" data-tab="live">${icon('timer')}<div><b class="num">${o.sessions || 0}</b><span>${esc(t('admin_quick_sessions'))}</span></div>${icon('chevron-right')}</button>
+                <button class="card quick" data-tab="orders">${icon('package')}<div><b class="num">${o.orders || 0}</b><span>${esc(t('admin_quick_orders'))}</span></div>${icon('chevron-right')}</button>
+                <button class="card quick" data-tab="live">${icon('truck')}<div><b class="num">${o.jobs || 0}</b><span>${esc(t('admin_quick_jobs'))}</span></div>${icon('chevron-right')}</button>
+            </div>`;
+    },
+
+    chart(data) {
+        if (!data.length) return `<div class="empty">${icon('chart-line')}<div>${esc(t('chart_empty'))}</div></div>`;
+        const W = 470, H = 270, padL = 46, padR = 6, padT = 12, padB = 26;
+        const innerW = W - padL - padR, innerH = H - padT - padB;
+        const maxVal = Math.max(1, ...data.map((d) => d.revenue));
+        const raw = maxVal / 4;
+        const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+        const n = raw / mag;
+        const step = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+        const top = step * 4;
+        const y = (v) => padT + innerH - (v / top) * innerH;
+        const band = innerW / data.length;
+        const barW = Math.min(24, band * 0.42);
+        const days = (t('weekdays_short') || 'Ne,Po,Út,St,Čt,Pá,So').split(',');
+        let grid = '', bars = '', labels = '', hits = '';
+        for (let i = 0; i <= 4; i++) {
+            const yy = y(step * i);
+            grid += `<line x1="${padL}" x2="${W - padR}" y1="${yy}" y2="${yy}" stroke="rgba(255,255,255,${i === 0 ? 0.14 : 0.06})" stroke-width="1"/>`;
+            grid += `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" fill="#82878e" font-size="11" font-family="Barlow">${esc(fmtCompactMoney(step * i))}</text>`;
+        }
+        data.forEach((d, i) => {
+            const cx = padL + band * i + band / 2;
+            const x = cx - barW / 2;
+            if (d.revenue > 0) {
+                const yTop = y(d.revenue);
+                const h = padT + innerH - yTop;
+                const r = Math.min(4, h, barW / 2);
+                bars += `<path class="chart-bar" style="animation-delay:${(0.12 + i * 0.05).toFixed(2)}s" d="M${x},${padT + innerH} L${x},${yTop + r} Q${x},${yTop} ${x + r},${yTop} L${x + barW - r},${yTop} Q${x + barW},${yTop} ${x + barW},${yTop + r} L${x + barW},${padT + innerH} Z" fill="var(--chart-1)"/>`;
+            }
+            const date = new Date(d.date * 1000);
+            labels += `<text x="${cx}" y="${H - 8}" text-anchor="middle" fill="#82878e" font-size="11" font-family="Barlow">${esc(days[date.getDay()] || '')} ${date.getDate()}.</text>`;
+            hits += `<rect class="chart-hit" data-i="${i}" x="${padL + band * i}" y="${padT}" width="${band}" height="${innerH}" fill="transparent"/>`;
+        });
+        this.chartData = data;
+        return `<div class="chart-wrap" id="adm-chart"><svg viewBox="0 0 ${W} ${H}" style="height:auto">${grid}<g id="adm-chart-hl"></g>${bars}${labels}${hits}</svg><div class="chart-tip" id="adm-chart-tip" hidden></div></div>`;
+    },
+
+    hideTip() {
+        const tip = $('#adm-chart-tip');
+        if (tip) tip.hidden = true;
+        const hl = $('#adm-chart-hl');
+        if (hl) hl.innerHTML = '';
+    },
+
+    onHover(e) {
+        const hit = e.target.closest && e.target.closest('#adm-chart .chart-hit');
+        if (!hit) return this.hideTip();
+        const d = this.chartData && this.chartData[Number(hit.dataset.i)];
+        const wrap = $('#adm-chart');
+        const tip = $('#adm-chart-tip');
+        if (!d || !wrap || !tip) return;
+        const rect = wrap.getBoundingClientRect();
+        const hr = hit.getBoundingClientRect();
+        $('#adm-chart-hl').innerHTML = `<rect x="${hit.getAttribute('x')}" y="${hit.getAttribute('y')}" width="${hit.getAttribute('width')}" height="${hit.getAttribute('height')}" fill="rgba(255,255,255,.035)" rx="4"/>`;
+        tip.innerHTML = `<div class="tt-date">${fmtDate(d.date, false)}</div>
+            <div class="tt-row"><span><i style="background:var(--chart-1)"></i>${esc(t('chart_revenue'))}</span><b class="num">${fmtMoney(d.revenue)}</b></div>
+            <div class="tt-row"><span>${esc(t('admin_chart_refuels'))}</span><b class="num">${fmtNum(d.refuels)}</b></div>
+            <div class="tt-row"><span>${esc(t('admin_chart_liters'))}</span><b class="num">${fmtNum(d.liters, 1)}</b></div>`;
+        tip.style.left = `${hr.left - rect.left + hr.width / 2}px`;
+        tip.style.top = `${Math.max(70, e.clientY - rect.top - 12)}px`;
+        tip.hidden = false;
+    },
+
+    /* --------------------------------------------- Benzinky */
+    filteredStations() {
+        const q = this.st.search.trim().toLowerCase();
+        return (this.d.stations || []).filter((x) => {
+            if (this.st.filter === 'owned' && !x.owned) return false;
+            if (this.st.filter === 'public' && x.owned) return false;
+            if (this.st.filter === 'closed' && x.open) return false;
+            if (!q) return true;
+            return [x.label, x.id, x.ownerName || '', x.defaultLabel].some((v) => String(v).toLowerCase().includes(q));
+        });
+    },
+
+    tabStations() {
+        const filters = ['all', 'owned', 'public', 'closed'];
+        return `
+            <div class="toolbar">
+                <div class="input-group search">${icon('store')}<input class="input" id="adm-search" placeholder="${esc(t('admin_search'))}" value="${esc(this.st.search)}"></div>
+                <div class="seg">${filters.map((f) => `<button class="${this.st.filter === f ? 'active' : ''}" data-filter="${f}">${esc(t('admin_filter_' + f))}</button>`).join('')}</div>
+            </div>
+            <div class="card" style="margin-top:14px"><div class="card-body table-scroll"><table class="table adm-table">
+                <thead><tr><th>${esc(t('col_station'))}</th><th>${esc(t('admin_col_owner'))}</th><th class="right">${esc(t('kpi_balance'))}</th><th>${esc(t('stock_title'))}</th><th class="right">${esc(t('kpi_revenue'))}</th><th>${esc(t('col_status'))}</th><th></th></tr></thead>
+                <tbody id="adm-stations-body">${this.stationRows()}</tbody></table></div></div>`;
+    },
+
+    stationRows() {
+        const list = this.filteredStations();
+        if (!list.length) return `<tr><td colspan="7"><div class="empty">${icon('store')}<div>${esc(t('admin_no_results'))}</div></div></td></tr>`;
+        return list.map((x) => {
+            const expanded = this.st.expanded === x.id;
+            return `<tr class="adm-row ${expanded ? 'expanded' : ''}" data-expand="${esc(x.id)}">
+                <td><div class="st-name" title="${esc(x.typeLabel)}"><span class="n">${esc(x.label)}</span><span class="mono s">${esc(x.id)}</span></div></td>
+                <td>${x.owned ? `<span class="strong">${esc(x.ownerName || '—')}</span>` : `<span class="faint">${esc(t('public'))}</span>`}</td>
+                <td class="right num">${x.owned ? fmtMoney(x.balance) : '—'}</td>
+                <td>${x.unlimited ? `<span class="faint">${esc(t('admin_unlimited'))}</span>` : `<div class="mini-bar"><span style="width:${Math.min(100, x.stockPct)}%;${x.stockPct < 15 ? 'background:var(--warn)' : ''}"></span></div><span class="mini-val num">${fmtNum(x.stockPct, 0)} %</span>`}</td>
+                <td class="right num">${fmtMoney(x.revenue)}</td>
+                <td><span class="pill ${x.open ? 'ok' : 'err'}">${esc(x.open ? t('status_open') : t('status_closed'))}</span></td>
+                <td class="right"><span class="chev ${expanded ? 'open' : ''}">${icon('chevron-right')}</span></td>
+            </tr>${expanded ? `<tr class="perm-panel"><td colspan="7">${this.stationDetail(x)}</td></tr>` : ''}`;
+        }).join('');
+    },
+
+    stationDetail(x) {
+        const players = this.d.players || [];
+        const confirm = this.st.confirmReset === x.id;
+        return `
+            <div class="adm-actions">
+                <button class="btn btn-sm" data-act="teleport" data-id="${esc(x.id)}">${icon('map-pin')}${esc(t('admin_teleport'))}</button>
+                <button class="btn btn-sm" data-act="toggleStation" data-id="${esc(x.id)}">${icon('power')}${esc(x.open ? t('set_close') : t('set_open'))}</button>
+                <button class="btn btn-sm" data-act="fillStock" data-id="${esc(x.id)}">${icon('droplet')}${esc(t('admin_fill_stock'))}</button>
+                <button class="btn btn-sm" data-act="resetPrices" data-id="${esc(x.id)}" ${x.customPrices ? '' : 'disabled'}>${icon('tag')}${esc(t('admin_reset_prices'))}</button>
+                <span class="spacer"></span>
+                ${x.owned ? (confirm
+                    ? `<button class="btn btn-ghost btn-sm" data-act="resetCancel">${esc(t('cancel'))}</button><button class="btn btn-danger btn-sm" data-act="resetStation" data-id="${esc(x.id)}">${icon('trash-2')}${esc(t('admin_reset_confirm'))}</button>`
+                    : `<button class="btn btn-danger btn-sm" data-act="resetAsk" data-id="${esc(x.id)}">${icon('trash-2')}${esc(t('admin_reset'))}</button>`) : ''}
+            </div>
+            <div class="grid adm-detail">
+                <div class="card"><div class="card-head"><h3>${esc(t('admin_ownership'))}</h3></div><div class="card-body">
+                    <div class="kv"><span>${esc(t('set_type'))}</span><span>${esc(x.typeLabel)}</span>
+                        <span>${esc(t('admin_col_owner'))}</span><span>${esc(x.owned ? x.ownerName : t('public'))}</span>
+                        <span>${esc(t('tab_employees'))}</span><span class="num">${x.employees}</span>
+                        <span>${esc(t('kpi_customers'))}</span><span class="num">${fmtNum(x.customers)}</span>
+                        <span>${esc(t('buy_price'))}</span><span class="num">${x.purchasable ? fmtMoney(x.price) : '—'}</span></div>
+                    <div class="field" style="margin-top:14px"><label>${esc(t('admin_transfer_label'))}</label>
+                        <div class="money-form" style="margin-top:0"><select class="select" data-transfer-select="${esc(x.id)}">${players.map((p) => `<option value="${p.id}">[${p.id}] ${esc(p.name)}</option>`).join('')}</select>
+                        <button class="btn btn-primary" data-act="transfer" data-id="${esc(x.id)}" ${players.length ? '' : 'disabled'}>${esc(t('admin_transfer'))}</button></div></div>
+                </div></div>
+                <div class="card"><div class="card-head"><h3>${esc(t('admin_finance_name'))}</h3></div><div class="card-body">
+                    <div class="field"><label>${esc(t('kpi_balance'))}</label>
+                        <div class="money-form" style="margin-top:0"><div class="input-group"><input class="input num" type="number" min="0" step="1" value="${x.balance}" data-balance="${esc(x.id)}" ${x.owned ? '' : 'disabled'}><span class="suffix">${esc(S.cfg.currency.symbol)}</span></div>
+                        <button class="btn" data-act="setBalance" data-id="${esc(x.id)}" ${x.owned ? '' : 'disabled'}>${esc(t('admin_set'))}</button></div></div>
+                    <div class="field" style="margin-top:14px"><label>${esc(t('set_rename'))}</label>
+                        <div class="money-form" style="margin-top:0"><input class="input" maxlength="32" placeholder="${esc(x.defaultLabel)}" value="${esc(x.label !== x.defaultLabel ? x.label : '')}" data-rename="${esc(x.id)}">
+                        <button class="btn" data-act="rename" data-id="${esc(x.id)}">${esc(t('save'))}</button></div></div>
+                </div></div>
+                <div class="card adm-stock-card"><div class="card-head"><h3>${esc(t('stock_title'))}</h3>${x.unlimited ? `<span class="pill info no-dot">${esc(t('admin_unlimited'))}</span>` : ''}</div><div class="card-body"><div class="adm-stock">
+                    ${x.fuels.map((f) => `<div class="adm-stock-row">${gradeChip(f)}
+                        <div class="input-group"><input class="input num" type="number" min="0" max="${f.capacity}" step="100" value="${Math.round(f.stock)}" data-stock="${esc(x.id)}:${esc(f.id)}"><span class="suffix">/ ${fmtNum(f.capacity)}</span></div>
+                        <button class="icon-btn" data-act="setStock" data-id="${esc(x.id)}" data-fuel="${esc(f.id)}" title="${esc(t('admin_set'))}">${icon('check')}</button></div>`).join('')}
+                </div></div></div>
+            </div>`;
+    },
+
+    /* --------------------------------------------- Objednávky */
+    tabOrders() {
+        const orders = this.d.orders || [];
+        if (!orders.length) return `<div class="card"><div class="card-body"><div class="empty">${icon('package')}<div>${esc(t('admin_orders_empty'))}</div></div></div></div>`;
+        const now = Date.now() / 1000;
+        return `<div class="card"><div class="card-body table-scroll"><table class="table adm-table"><thead><tr><th>#</th><th>${esc(t('col_station'))}</th><th>${esc(t('col_fuel'))}</th><th class="right">${esc(t('col_amount'))}</th><th>${esc(t('col_method'))}</th><th>${esc(t('col_status'))}</th><th>${esc(t('col_info'))}</th><th class="right">${esc(t('col_cost'))}</th><th></th></tr></thead><tbody>
+            ${orders.map((o) => {
+                const f = S.cfg.fuelTypes[o.fuelType] || { short: '?', color: '#888', unit: 'l' };
+                let info = o.driverName ? t('order_driver', o.driverName) : (o.deliverAt > 0 ? (o.deliverAt > now ? t('order_eta', Math.max(1, Math.ceil((o.deliverAt - now) / 60))) : t('order_eta_soon')) : fmtDate(o.createdAt));
+                return `<tr><td class="num">${o.id}</td><td class="strong">${esc(o.station)}</td><td>${gradeChip(f)}</td><td class="right num">${fmtNum(o.liters)} ${unitLabel(f.unit)}</td>
+                    <td>${esc(t('order_method_' + o.method))}</td><td>${Views.management.orderStatus(o)}</td><td>${esc(info)}</td><td class="right num">${fmtMoney(o.cost)}</td>
+                    <td class="right" style="white-space:nowrap"><button class="btn btn-sm" data-act="deliverOrder" data-order="${o.id}">${icon('check')}${esc(t('admin_deliver'))}</button>
+                    <button class="btn btn-ghost btn-sm" data-act="cancelOrder" data-order="${o.id}">${esc(t('cancel'))}</button></td></tr>`;
+            }).join('')}</tbody></table></div></div>
+            <div class="notice" style="margin-top:14px">${icon('info')}<span>${esc(t('admin_orders_hint'))}</span></div>`;
+    },
+
+    /* --------------------------------------------- Živě */
+    tabLive() {
+        const live = this.d.live || { sessions: [], jobs: [], duty: [] };
+        const empty = (key, ic) => `<div class="empty">${icon(ic)}<div>${esc(t(key))}</div></div>`;
+        const sessions = live.sessions.length ? `<table class="table adm-table"><thead><tr><th>${esc(t('admin_col_player'))}</th><th>${esc(t('col_station'))}</th><th>${esc(t('col_plate'))}</th><th>${esc(t('col_fuel'))}</th><th>${esc(t('admin_col_progress'))}</th><th class="right">${esc(t('admin_col_deposit'))}</th><th></th></tr></thead><tbody>
+            ${live.sessions.map((x) => {
+                const f = S.cfg.fuelTypes[x.fuelType] || { short: '?', color: '#888', unit: 'l' };
+                const pct = x.amount > 0 ? Math.min(100, x.delivered / x.amount * 100) : 0;
+                return `<tr><td class="strong">${esc(x.player)} <span class="faint">[${x.source}]</span></td><td>${esc(x.station)}</td><td>${x.plate ? `<span class="plate" style="height:20px;font-size:11px">${esc(x.plate)}</span>` : '—'}</td><td>${gradeChip(f)}</td>
+                    <td><div class="mini-bar flow"><span style="width:${pct}%"></span></div><span class="mini-val num">${fmtNum(x.delivered, 1)} / ${fmtNum(x.amount, 1)} ${unitLabel(f.unit)}</span></td>
+                    <td class="right num">${fmtMoney(x.paid)}</td><td class="right"><button class="btn btn-danger btn-sm" data-act="stopSession" data-session="${x.id}">${esc(t('admin_stop'))}</button></td></tr>`;
+            }).join('')}</tbody></table>` : empty('admin_live_no_sessions', 'fuel');
+        const jobs = live.jobs.length ? `<table class="table adm-table"><thead><tr><th>${esc(t('admin_col_driver'))}</th><th>#</th><th>${esc(t('col_station'))}</th><th>${esc(t('col_status'))}</th><th class="right">${esc(t('admin_col_time'))}</th><th class="right">${esc(t('board_reward'))}</th><th></th></tr></thead><tbody>
+            ${live.jobs.map((x) => `<tr><td class="strong">${esc(x.driver)} <span class="faint">[${x.source}]</span></td><td class="num">${x.orderId}</td><td>${esc(x.station)}</td><td>${Views.management.orderStatus({ status: x.status === 'delivered' ? 'delivered' : x.status, method: 'tanker' })}</td>
+                <td class="right num">${esc(t('duration_m', x.minutes))}</td><td class="right num">${fmtMoney(x.reward)}</td><td class="right"><button class="btn btn-ghost btn-sm" data-act="cancelJob" data-source="${x.source}">${esc(t('cancel'))}</button></td></tr>`).join('')}</tbody></table>` : empty('admin_live_no_jobs', 'truck');
+        const duty = live.duty.length ? `<table class="table adm-table"><thead><tr><th>${esc(t('admin_col_employee'))}</th><th>${esc(t('col_station'))}</th><th>${esc(t('col_rank'))}</th><th class="right">${esc(t('admin_col_shift'))}</th><th class="right">${esc(t('admin_col_earned'))}</th><th></th></tr></thead><tbody>
+            ${live.duty.map((x) => `<tr><td class="strong">${esc(x.name)} <span class="faint">[${x.source}]</span></td><td>${esc(x.station)}</td><td>${esc(x.rank)}</td><td class="right num">${fmtClock(x.seconds)}</td><td class="right num">${fmtMoney(x.earned)}</td>
+                <td class="right"><button class="btn btn-ghost btn-sm" data-act="clockOut" data-source="${x.source}">${esc(t('admin_clock_out'))}</button></td></tr>`).join('')}</tbody></table>` : empty('admin_live_no_duty', 'clock');
+        return `
+            <div class="card"><div class="card-head"><h3>${icon('fuel', 'muted')} ${esc(t('admin_live_sessions'))} <span class="faint num">${live.sessions.length}</span></h3></div><div class="card-body table-scroll">${sessions}</div></div>
+            <div class="card" style="margin-top:14px"><div class="card-head"><h3>${icon('truck', 'muted')} ${esc(t('admin_live_jobs'))} <span class="faint num">${live.jobs.length}</span></h3></div><div class="card-body table-scroll">${jobs}</div></div>
+            <div class="card" style="margin-top:14px"><div class="card-head"><h3>${icon('clock', 'muted')} ${esc(t('admin_live_duty'))} <span class="faint num">${live.duty.length}</span></h3></div><div class="card-body table-scroll">${duty}</div></div>`;
+    },
+
+    /* --------------------------------------------- Palivo vozidel */
+    tabFuel() {
+        const radii = [10, 25, 50, 100].filter((r) => r <= ((this.d.admin && this.d.admin.areaMax) || 100));
+        const plate = this.st.plate;
+        return `
+            <div class="grid g-3">
+                <div class="card"><div class="card-head"><h3>${esc(t('admin_fuel_vehicle'))}</h3>${icon('gauge', 'muted')}</div><div class="card-body">
+                    <div class="amount-display" style="margin-top:0"><div class="digits num" id="adm-fuel-val">${fmtNum(this.st.fuelAmount)}<small>%</small></div></div>
+                    <input type="range" id="adm-fuel-range" min="0" max="100" step="1" value="${this.st.fuelAmount}" style="--fill:${this.st.fuelAmount}%">
+                    <div class="presets">${[0, 25, 50, 100].map((v) => `<button class="preset ${this.st.fuelAmount === v ? 'active' : ''}" data-fuel-preset="${v}">${v} %</button>`).join('')}</div>
+                    <div class="grid g-2" style="margin-top:12px;gap:8px">
+                        <button class="btn btn-primary" data-act="vehicleFuel" data-target="current">${icon('fuel')}${esc(t('admin_current_vehicle'))}</button>
+                        <button class="btn" data-act="vehicleFuel" data-target="nearest">${icon('map-pin')}${esc(t('admin_nearest_vehicle'))}</button>
+                    </div>
+                </div></div>
+                <div class="card"><div class="card-head"><h3>${esc(t('admin_area_title'))}</h3>${icon('route', 'muted')}</div><div class="card-body">
+                    <p class="muted" style="font-size:13px;line-height:1.45">${esc(t('admin_area_desc'))}</p>
+                    <div class="field" style="margin-top:14px"><label>${esc(t('admin_area_radius'))}</label>
+                        <div class="seg">${radii.map((r) => `<button class="${this.st.radius === r ? 'active' : ''}" data-radius="${r}">${r} m</button>`).join('')}</div></div>
+                    <button class="btn btn-primary btn-block" style="margin-top:16px" data-act="areaRefuel">${icon('droplet')}${esc(t('admin_area_btn', this.st.radius))}</button>
+                </div></div>
+                <div class="card"><div class="card-head"><h3>${esc(t('admin_plate_title'))}</h3>${icon('receipt', 'muted')}</div><div class="card-body">
+                    <div class="field"><label>${esc(t('col_plate'))}</label>
+                        <div class="money-form" style="margin-top:0"><input class="input mono" id="adm-plate" maxlength="8" placeholder="ABC 123" value="${esc(plate ? plate.plate : '')}" style="text-transform:uppercase">
+                        <button class="btn" data-act="plateLookup">${esc(t('admin_lookup'))}</button></div></div>
+                    ${plate ? `<div class="plate-result"><span class="plate">${esc(plate.plate)}</span><span class="num">${plate.fuel === null || plate.fuel === undefined ? esc(t('admin_plate_unknown')) : fmtNum(plate.fuel, 1) + ' %'}</span></div>` : `<p class="muted" style="font-size:12px;margin-top:10px">${esc(t('admin_plate_hint'))}</p>`}
+                    <div class="field" style="margin-top:14px"><label>${esc(t('admin_plate_set'))}</label>
+                        <div class="money-form" style="margin-top:0"><div class="input-group"><input class="input num" id="adm-plate-amount" type="number" min="0" max="100" step="1" value="100"><span class="suffix">%</span></div>
+                        <button class="btn" data-act="plateSet">${esc(t('admin_set'))}</button></div></div>
+                </div></div>
+            </div>
+            <div class="notice" style="margin-top:14px">${icon('info')}<span>${esc(t('admin_fuel_hint'))}</span></div>`;
+    },
+
+    /* --------------------------------------------- Audit log */
+    tabLogs() {
+        const logs = this.d.logs || [];
+        if (!logs.length) return `<div class="card"><div class="card-body"><div class="empty">${icon('scroll-text')}<div>${esc(t('admin_logs_empty'))}</div></div></div></div>`;
+        return `<div class="card"><div class="card-body table-scroll"><table class="table adm-table"><thead><tr><th>${esc(t('col_date'))}</th><th>${esc(t('admin_col_admin'))}</th><th>${esc(t('admin_col_action'))}</th><th>${esc(t('admin_col_target'))}</th><th>${esc(t('admin_col_details'))}</th></tr></thead><tbody>
+            ${logs.map((l) => `<tr><td class="num">${fmtDate(l.created_at)}</td><td class="strong">${esc(l.admin_name || '—')}</td><td><span class="pill info no-dot">${esc(S.locale['admin_log_' + l.action] || l.action)}</span></td><td class="mono" style="font-size:12px">${esc(l.target || '—')}</td><td>${esc(l.details || '')}</td></tr>`).join('')}
+            </tbody></table></div></div>`;
+    },
+
+    /* --------------------------------------------- události */
+    onInput(e) {
+        if (e.target.id === 'adm-search') {
+            this.st.search = e.target.value;
+            const body = $('#adm-stations-body');
+            if (body) body.innerHTML = this.stationRows();
+            return;
+        }
+        if (e.target.id === 'adm-fuel-range') {
+            this.st.fuelAmount = Number(e.target.value);
+            e.target.style.setProperty('--fill', `${this.st.fuelAmount}%`);
+            const v = $('#adm-fuel-val');
+            if (v) v.innerHTML = `${fmtNum(this.st.fuelAmount)}<small>%</small>`;
+            $$('[data-fuel-preset]').forEach((b) => b.classList.toggle('active', Number(b.dataset.fuelPreset) === this.st.fuelAmount));
+        }
+    },
+
+    async onClick(e) {
+        const el = e.target.closest('button, [data-tab], [data-expand]');
+        if (!el || el.disabled) return;
+        const ds = el.dataset;
+        if (e.target.closest('input, select')) return;
+
+        if (ds.tab) {
+            this.st.enter = this.st.tab !== ds.tab;
+            this.st.tab = ds.tab;
+            this.render();
+            return;
+        }
+        if (ds.filter) { this.st.filter = ds.filter; this.render(); return; }
+        if (ds.radius) { this.st.radius = Number(ds.radius); this.render(); return; }
+        if (ds.fuelPreset) {
+            this.st.fuelAmount = Number(ds.fuelPreset);
+            this.render();
+            return;
+        }
+        if (ds.expand && !e.target.closest('.perm-panel')) {
+            this.st.expanded = this.st.expanded === ds.expand ? null : ds.expand;
+            this.st.confirmReset = null;
+            const body = $('#adm-stations-body');
+            if (body) body.innerHTML = this.stationRows();
+            return;
+        }
+        if (!ds.act) return;
+        const opts = { button: el.classList.contains('btn') || el.classList.contains('icon-btn') ? el : null };
+        const id = ds.id;
+        switch (ds.act) {
+            case 'refresh': return this.action('refresh', {}, opts);
+            case 'teleport': return this.action('teleport', { stationId: id }, opts);
+            case 'toggleStation': return this.action('toggleStation', { stationId: id }, opts);
+            case 'fillStock': return this.action('fillStock', { stationId: id }, opts);
+            case 'resetPrices': return this.action('resetPrices', { stationId: id }, opts);
+            case 'resetAsk': this.st.confirmReset = id; return this.render();
+            case 'resetCancel': this.st.confirmReset = null; return this.render();
+            case 'resetStation': this.st.confirmReset = null; return this.action('resetStation', { stationId: id, confirm: id }, opts);
+            case 'transfer': {
+                const sel = $(`[data-transfer-select="${id}"]`);
+                return this.action('transfer', { stationId: id, target: sel ? Number(sel.value) : null }, opts);
+            }
+            case 'setBalance': {
+                const input = $(`[data-balance="${id}"]`);
+                return this.action('setBalance', { stationId: id, balance: Math.floor(Number(input.value) || 0) }, opts);
+            }
+            case 'rename': {
+                const input = $(`[data-rename="${id}"]`);
+                return this.action('rename', { stationId: id, label: input ? input.value : '' }, opts);
+            }
+            case 'setStock': {
+                const input = $(`[data-stock="${id}:${ds.fuel}"]`);
+                return this.action('setStock', { stationId: id, fuelType: ds.fuel, liters: Number(input.value) || 0 }, opts);
+            }
+            case 'deliverOrder': return this.action('deliverOrder', { orderId: Number(ds.order) }, opts);
+            case 'cancelOrder': return this.action('cancelOrder', { orderId: Number(ds.order) }, opts);
+            case 'stopSession': return this.action('stopSession', { sessionId: Number(ds.session) }, opts);
+            case 'cancelJob': return this.action('cancelJob', { source: Number(ds.source) }, opts);
+            case 'clockOut': return this.action('clockOut', { source: Number(ds.source) }, opts);
+            case 'vehicleFuel': return this.action('vehicleFuel', { amount: this.st.fuelAmount, target: ds.target }, opts);
+            case 'areaRefuel': return this.action('areaRefuel', { radius: this.st.radius }, opts);
+            case 'plateLookup': {
+                const plate = ($('#adm-plate').value || '').trim().toUpperCase();
+                if (!plate) return null;
+                const res = await this.action('plateLookup', { plate }, Object.assign(opts, { noRender: true }));
+                if (res && res.ok && this.d) { this.st.plate = res.data; this.render(); }
+                return res;
+            }
+            case 'plateSet': {
+                const plate = ($('#adm-plate').value || '').trim().toUpperCase();
+                if (!plate) return null;
+                const res = await this.action('plateSet', { plate, amount: Number($('#adm-plate-amount').value) }, Object.assign(opts, { noRender: true }));
+                if (res && res.ok && this.d) { this.st.plate = res.data; this.render(); }
+                return res;
+            }
+            default: return null;
+        }
+    },
+};
+
 /* ------------------------------------------------------------------ Zprávy z Lua */
 function init(data) {
     if (data.locale) S.locale = data.locale;

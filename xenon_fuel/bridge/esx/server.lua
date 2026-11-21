@@ -90,7 +90,8 @@ function Bridge.IsAdmin(source)
     if source == 0 then return true end
     local xPlayer = ESX.GetPlayerFromId(source)
     if not xPlayer then return false end
-    return adminGroups[xPlayer.getGroup()] == true
+    if adminGroups[xPlayer.getGroup()] == true then return true end
+    return Config.Admin.Ace and IsPlayerAceAllowed(tostring(source), Config.Admin.Ace) or false
 end
 
 function Bridge.GetPlayers()

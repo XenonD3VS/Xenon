@@ -132,6 +132,19 @@ local schema = {
         KEY `idx_station_status` (`station_id`, `status`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ]],
+    [[
+    CREATE TABLE IF NOT EXISTS `xenon_fuel_admin_log` (
+        `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        `admin` VARCHAR(64) DEFAULT NULL,
+        `admin_name` VARCHAR(100) DEFAULT NULL,
+        `action` VARCHAR(32) NOT NULL,
+        `target` VARCHAR(100) DEFAULT NULL,
+        `details` VARCHAR(255) DEFAULT NULL,
+        `created_at` INT UNSIGNED NOT NULL,
+        PRIMARY KEY (`id`),
+        KEY `idx_created` (`created_at`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ]],
 }
 
 function Database.Init()

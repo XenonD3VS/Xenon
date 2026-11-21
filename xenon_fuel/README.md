@@ -65,6 +65,15 @@ a rozvoz cisternami. Vše se ověřuje na serveru.
 - Nikdo nemůže spravovat stejnou či vyšší hodnost ani udělit oprávnění, které sám nemá.
 - Směny (příchod / odchod), evidence odpracovaného času (celkem i za posledních 7 dní), automatické výplaty z firemního účtu.
 
+**Admin panel** (`/fueladmin`)
+- Přehled: vlastněné stanice, peníze na firemních účtech, tržby všech stanic, graf za 7 dní, nejvýdělečnější stanice, hráči online.
+- Benzinky: vyhledávání a filtry, teleport, otevřít/zavřít, nastavení zůstatku, skladu a názvu, výchozí ceny,
+  naplnění skladu, převod vlastnictví na online hráče, reset stanice.
+- Objednávky: okamžité doručení nebo zrušení s vrácením peněz (i rozjeté rozvozy).
+- Živě: probíhající tankování (ukončit s vyúčtováním), rozvozy (zrušit), zaměstnanci ve směně (odhlásit).
+- Palivo vozidel: vlastní / nejbližší vozidlo, hromadné doplnění v okolí, palivo podle SPZ (i pro vozidla v garáži).
+- Audit log: každá admin akce se ukládá do databáze i do konzole.
+
 **Zásobování**
 - Sklad s kapacitou pro každý druh paliva, veřejné benzinky mají neomezené zásoby (nastavitelné).
 - Objednávky: externí dodavatel (automatické doručení po X minutách, s poplatkem) nebo cisterna (levnější, rozváží hráči).
@@ -209,11 +218,14 @@ Volitelně omezení na ESX job (`RequiredJob = 'trucker'`).
 | Příkaz | Kdo | Popis |
 |---|---|---|
 | `/fuelhistory` | všichni | historie tankování (kliknutím na řádek zobrazíš účtenku) |
+| `/fueladmin` | admin | admin panel |
 | `/setfuel [0-100]` | admin | nastaví palivo vozidla, ve kterém sedíš |
 | `/fuelreset [id]` | admin | odebere vlastnictví benzinky (bez náhrady) |
 | `/fuelstations` | admin | vypíše id všech benzinek do konzole |
 
-Admin skupiny: `Config.Admin.Groups`. Názvy příkazů lze změnit v `Config.Admin.Commands`.
+Admin přístup: ESX skupiny v `Config.Admin.Groups` **nebo** ACE oprávnění `Config.Admin.Ace`
+(např. `add_ace group.admin xenon_fuel.admin allow` v server.cfg). Názvy příkazů lze změnit v `Config.Admin.Commands`.
+Všechny admin akce (panel i příkazy) se zapisují do audit logu.
 
 ---
 
@@ -254,6 +266,7 @@ nebo `SetPlateFuel(plate, fuel)`. Klientský export palivo zvýšit nedovolí.
 | `xenon_fuel_finance` | pohyby na firemních účtech |
 | `xenon_fuel_refuels` | historie tankování (hráč i benzinka), čísla účtenek |
 | `xenon_fuel_orders` | objednávky paliva a jejich stav |
+| `xenon_fuel_admin_log` | audit log admin akcí |
 
 Všechny důležité údaje přežijí restart. Rozjeté rozvozy se po restartu vrátí do nabídky (vozidla po restartu neexistují).
 
@@ -275,6 +288,8 @@ Všechny důležité údaje přežijí restart. Rozjeté rozvozy se po restartu 
 - **Objednávky a rozvozy:** kontrola kapacity, stavový automat zakázky, minimální doba nakládky/vykládky ověřená
   serverem, odměna se vyplatí jen jednou.
 - **Rate limiting** všech citlivých akcí, ošetření NaN/inf/záporných čísel, sanitizace textů.
+- **Admin panel:** oprávnění se ověřuje na serveru u každé akce (nejen při otevření), akce mají rate limit
+  a zapisují se do audit logu. Pokus o přístup bez oprávnění se loguje.
 - Podezřelé požadavky se vypisují do konzole (`Config.Security.LogSuspicious`).
 
 > Spotřebu paliva počítá klient (otáčky motoru nejsou na serveru dostupné) – stejně jako ve všech běžných fuel scriptech.
@@ -321,6 +336,7 @@ xenon_fuel/
 │   ├── refueling.lua      # relace tankování, escrow platby, účtenky
 │   ├── deliveries.lua     # objednávky, dodavatel, rozvoz cisternami
 │   ├── management.lua     # data a akce management panelu
+│   ├── admin.lua          # admin panel, audit log
 │   ├── commands.lua
 │   └── main.lua           # inicializace, uložení při vypnutí
 ├── client/
@@ -330,6 +346,7 @@ xenon_fuel/
 │   ├── refueling.lua      # pistole, hadice, tankovací UI, animace
 │   ├── management.lua     # panel, nákup, nabídky práce
 │   ├── deliveries.lua     # rozvozová práce
+│   ├── admin.lua          # admin panel
 │   └── targets.lua        # ox_target interakce
 ├── web/                   # NUI (HTML/CSS/JS, fonty Barlow + JetBrains Mono, ikony Lucide)
 └── locales/               # cs.json, en.json

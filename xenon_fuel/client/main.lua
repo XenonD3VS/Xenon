@@ -89,6 +89,7 @@ local function buildInit()
             ranks = ranks,
             cancelKey = Config.Refuel.CancelKey,
             payroll = Config.Payroll.Interval,
+            adminLogLimit = Config.Admin.LogLimit,
         },
     }
 end

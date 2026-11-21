@@ -345,8 +345,13 @@ Config.Security = {
 -- ADMIN
 ---------------------------------------------------------------------------------------------------
 Config.Admin = {
-    Groups = { 'admin', 'superadmin' }, -- ESX skupiny s přístupem k admin příkazům
+    Groups = { 'admin', 'superadmin' }, -- ESX skupiny s přístupem k admin panelu a příkazům
+    -- Alternativně ACE oprávnění (server.cfg: add_ace group.admin xenon_fuel.admin allow). false = vypnuto
+    Ace = 'xenon_fuel.admin',
+    LogLimit = 100,                     -- počet záznamů audit logu v admin panelu
+    AreaRefuelMaxRadius = 100.0,        -- max. poloměr hromadného doplnění paliva (m)
     Commands = {
+        panel = 'fueladmin',            -- /fueladmin – admin panel
         setFuel = 'setfuel',            -- /setfuel [0-100]
         resetStation = 'fuelreset',     -- /fuelreset [stationId]
         listStations = 'fuelstations',  -- /fuelstations

@@ -32,6 +32,7 @@ client_scripts {
     'client/refueling.lua',
     'client/management.lua',
     'client/deliveries.lua',
+    'client/admin.lua',
     'client/targets.lua',
 }
 
@@ -48,6 +49,7 @@ server_scripts {
     'server/refueling.lua',
     'server/deliveries.lua',
     'server/management.lua',
+    'server/admin.lua',
     'server/commands.lua',
     'server/main.lua',
 }

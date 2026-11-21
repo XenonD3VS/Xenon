@@ -246,6 +246,27 @@ function Deliveries.Complete(order, via)
     return delivered
 end
 
+local function endJobForOrder(orderId, reason)
+    for source, job in pairs(Deliveries.jobs) do
+        if job.orderId == orderId then Deliveries.EndJob(source, reason) end
+    end
+end
+
+--- Admin: okamžité doručení objednávky (případný rozvoz se ukončí)
+function Deliveries.ForceDeliver(order)
+    endJobForOrder(order.id, 'admin')
+    return Deliveries.Complete(order, 'admin')
+end
+
+--- Admin: zrušení objednávky v jakémkoliv stavu, peníze se vrátí na firemní účet
+function Deliveries.ForceCancel(order, actor, actorName)
+    endJobForOrder(order.id, 'admin')
+    Deliveries.orders[order.id] = nil
+    order.status = 'cancelled'
+    saveOrder(order)
+    refundOrder(Stations.Get(order.stationId), order, actor, actorName, L('finance_note_order_cancel', order.id))
+end
+
 --- Objednávky pro management (aktivní + posledních 10 uzavřených)
 function Deliveries.GetStationOrders(stationId)
     local list = {}
