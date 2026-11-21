@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xenon_fuel</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Okna bez kurzoru (HUD vrstvy) -->
+    <div id="hud" class="hud" hidden></div>
+    <div id="jobhud" class="jobhud" hidden></div>
+    <div id="progress" class="pump-display" hidden></div>
+    <div id="action" class="action-bar" hidden></div>
+    <div id="receipt-layer" class="receipt-layer"></div>
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+
+    <!-- Modální okna -->
+    <div id="modals"></div>
+
+    <script src="icons.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
