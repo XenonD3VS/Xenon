@@ -463,6 +463,35 @@ const Receipt = {
     },
 };
 
+/* ------------------------------------------------------------------ Načítání (čekání na server) */
+const Loader = {
+    timer: null,
+    show(label) {
+        clearTimeout(this.timer);
+        // krátké odpovědi nezobrazují nic (bez probliknutí)
+        this.timer = setTimeout(() => {
+            const el = $('#loader');
+            el.innerHTML = `<div class="loader-ring">${icon('fuel')}</div>
+                <div><div class="l-title">${esc(label || t('loading'))}</div><div class="l-sub"><span class="dots">${esc(t('loading_sub'))}</span></div></div>`;
+            el.className = 'loader';
+            el.hidden = false;
+        }, 140);
+    },
+    hide() {
+        clearTimeout(this.timer);
+        $('#loader').hidden = true;
+    },
+};
+
+/** Řádky skeletonu pro tabulky během načítání */
+function skeletonRows(cols, rows = 6) {
+    let html = '';
+    for (let r = 0; r < rows; r++) {
+        html += `<tr class="skel-row">${Array.from({ length: cols }, (_, c) => `<td><span class="skel" style="width:${[70, 55, 85, 45, 60, 75, 50][(r + c) % 7]}%"></span></td>`).join('')}</tr>`;
+    }
+    return html;
+}
+
 /* ------------------------------------------------------------------ Modální okna */
 const Modals = {
     stack: [],
@@ -760,9 +789,10 @@ Views.refuel = {
         $('#rf-error', win).innerHTML = error ? `${icon('triangle-alert')}<span>${esc(error)}</span>` : '';
 
         const confirm = $('#rf-confirm', win);
-        confirm.disabled = this.st.busy || !fuel || amount < q.minAmount || !enough;
+        confirm.disabled = !this.st.busy && (!fuel || amount < q.minAmount || !enough);
+        confirm.classList.toggle('is-loading', this.st.busy);
         confirm.innerHTML = this.st.busy
-            ? `${icon('refresh-cw', 'spin')} ${esc(t('refuel_processing'))}`
+            ? `${icon('fuel')} ${esc(t('refuel_processing'))}`
             : `${icon('fuel')} ${esc(t('refuel_confirm', fmtMoney(total)))}`;
     },
 
@@ -804,6 +834,7 @@ Views.management = {
             order: { fuel: null, liters: null, method: null },
         };
         this.st.tab = this.tabs()[0] ? this.tabs()[0].id : 'shift';
+        this.st.enter = true;
         const win = Modals.open('management', 'mgmt', '<div class="mgmt-side"></div><div class="mgmt-main"></div>');
         this.bind(win);
         this.render();
@@ -847,12 +878,28 @@ Views.management = {
     async action(name, payload = {}, opts = {}) {
         if (this.st.busy && !opts.parallel) return null;
         if (!opts.parallel) this.st.busy = true;
+        this.setBusy(true, opts.button);
         const res = await post('mgmt:action', { action: name, payload });
         if (!this.d) return res;
         if (!opts.parallel) this.st.busy = false;
+        this.setBusy(false);
         if (res && res.update) Object.assign(this.d, res.update);
         if (!opts.noRender) this.render();
         return res;
+    },
+
+    /** Indikátor probíhající akce: pruh v horní části panelu + spinner v tlačítku */
+    setBusy(on, button) {
+        const win = Modals.get('management');
+        if (!win) return;
+        const main = $('.mgmt-main', win);
+        const bar = $('.win-progress', main);
+        if (on && !bar) main.insertAdjacentHTML('afterbegin', '<div class="win-progress"></div>');
+        if (!on && bar) bar.remove();
+        const content = $('.mgmt-content', win);
+        if (content) content.classList.toggle('is-busy', on && !button);
+        if (button) button.classList.add('is-loading');
+        if (!on) $$('.is-loading', win).forEach((el) => el.classList.remove('is-loading'));
     },
 
     /* --------------------------------------------- vykreslení */
@@ -891,7 +938,8 @@ Views.management = {
                 <button class="icon-btn" data-act="refresh" title="${esc(t('refresh'))}">${icon('refresh-cw')}</button>
                 ${closeButton('management')}
             </div>
-            <div class="mgmt-content">${this.renderTab()}</div>`;
+            <div class="mgmt-content${this.st.enter ? ' tab-enter' : ''}">${this.renderTab()}</div>`;
+        this.st.enter = false;
     },
 
     tabSubtitle() {
@@ -970,12 +1018,13 @@ Views.management = {
         const band = innerW / data.length;
         const barW = Math.min(18, band * 0.3);
         const days = (t('weekdays_short') || 'Ne,Po,Út,St,Čt,Pá,So').split(',');
+        let barIndex = 0;
         const bar = (x, v, color) => {
             if (v <= 0) return '';
             const yTop = y(v);
             const h = padT + innerH - yTop;
             const r = Math.min(4, h, barW / 2);
-            return `<path d="M${x},${padT + innerH} L${x},${yTop + r} Q${x},${yTop} ${x + r},${yTop} L${x + barW - r},${yTop} Q${x + barW},${yTop} ${x + barW},${yTop + r} L${x + barW},${padT + innerH} Z" fill="${color}"/>`;
+            return `<path class="chart-bar" style="animation-delay:${(0.12 + barIndex++ * 0.035).toFixed(3)}s" d="M${x},${padT + innerH} L${x},${yTop + r} Q${x},${yTop} ${x + r},${yTop} L${x + barW - r},${yTop} Q${x + barW},${yTop} ${x + barW},${yTop + r} L${x + barW},${padT + innerH} Z" fill="${color}"/>`;
         };
         let grid = '';
         for (let i = 0; i <= 4; i++) {
@@ -1145,7 +1194,7 @@ Views.management = {
         if (this.st.hireOpen) {
             const players = this.st.players;
             let body;
-            if (players === null) body = `<div class="empty">${icon('refresh-cw', 'spin')}<div>${esc(t('loading'))}</div></div>`;
+            if (players === null) body = `<div class="hire-list">${[0, 1, 2].map(() => `<div class="skel-item"><span class="skel round" style="width:30px;height:30px"></span><span><span class="skel" style="width:55%"></span><span class="skel" style="width:30%;margin-top:7px;height:9px"></span></span><span class="skel" style="height:32px;border-radius:10px"></span><span class="skel" style="height:30px;border-radius:999px"></span></div>`).join('')}</div>`;
             else if (!players.length) body = `<div class="empty">${icon('user-x')}<div>${esc(t('hire_none'))}</div></div>`;
             else body = `<div class="hire-list">${players.map((pl) => `
                 <div class="hire-item"><div class="emp-name"><div class="avatar">${esc(initials(pl.name))}</div><div><div class="n">${esc(pl.name)}</div><div class="s">ID ${pl.id}</div></div></div>
@@ -1257,6 +1306,9 @@ Views.management = {
     },
 
     financeTable(fin) {
+        if (this.st.loadingTable === 'finance') {
+            return `<table class="table"><thead><tr><th>${esc(t('col_date'))}</th><th>${esc(t('col_type'))}</th><th>${esc(t('col_note'))}</th><th>${esc(t('col_actor'))}</th><th class="right">${esc(t('col_amount_money'))}</th><th class="right">${esc(t('col_balance'))}</th></tr></thead><tbody>${skeletonRows(6, 7)}</tbody></table>`;
+        }
         if (!fin.rows.length) return `<div class="empty">${icon('scroll-text')}<div>${esc(t('fin_empty'))}</div></div>`;
         return `<table class="table"><thead><tr><th>${esc(t('col_date'))}</th><th>${esc(t('col_type'))}</th><th>${esc(t('col_note'))}</th><th>${esc(t('col_actor'))}</th><th class="right">${esc(t('col_amount_money'))}</th><th class="right">${esc(t('col_balance'))}</th></tr></thead><tbody>
             ${fin.rows.map((r) => `<tr><td class="num">${fmtDate(r.created_at)}</td><td class="strong">${esc(t('fin_type_' + r.type))}</td><td>${esc(r.note || '')}</td><td>${esc(r.actor_name || '—')}</td>
@@ -1275,6 +1327,9 @@ Views.management = {
     tabSales() {
         const sales = this.d.sales;
         if (!sales) return '';
+        if (this.st.loadingTable === 'sales') {
+            return `<div class="card"><div class="card-body"><table class="table"><thead><tr><th>${esc(t('col_date'))}</th><th>${esc(t('col_receipt'))}</th><th>${esc(t('col_customer'))}</th><th>${esc(t('col_plate'))}</th><th>${esc(t('col_fuel'))}</th><th class="right">${esc(t('col_amount'))}</th><th class="right">${esc(t('col_unit_price'))}</th><th>${esc(t('col_payment'))}</th><th class="right">${esc(t('col_total_price'))}</th></tr></thead><tbody>${skeletonRows(9, 8)}</tbody></table></div></div>`;
+        }
         return `<div class="card"><div class="card-body">${sales.rows.length ? this.salesTable(sales.rows, false) + this.pager('sales', sales) : `<div class="empty">${icon('receipt')}<div>${esc(t('sales_empty'))}</div></div>`}</div></div>`;
     },
 
@@ -1397,6 +1452,7 @@ Views.management = {
         const ds = el.dataset;
 
         if (ds.tab) {
+            this.st.enter = this.st.tab !== ds.tab;
             this.st.tab = ds.tab;
             this.st.confirmSell = false;
             this.st.confirmQuit = false;
@@ -1406,10 +1462,11 @@ Views.management = {
         }
 
         if (ds.act) return this.onAct(ds.act, el);
+        const btnOpts = { button: el.classList.contains('btn') || el.classList.contains('icon-btn') ? el : null };
 
         if (ds.savePrice) {
             const input = $(`[data-price-input="${ds.savePrice}"]`);
-            this.action('setPrice', { fuelType: ds.savePrice, price: Number(String(input.value).replace(',', '.')) });
+            this.action('setPrice', { fuelType: ds.savePrice, price: Number(String(input.value).replace(',', '.')) }, btnOpts);
             return;
         }
         if (ds.orderFuel) {
@@ -1424,12 +1481,12 @@ Views.management = {
             return;
         }
         if (ds.cancelOrder) {
-            this.action('cancelOrder', { orderId: Number(ds.cancelOrder) });
+            this.action('cancelOrder', { orderId: Number(ds.cancelOrder) }, btnOpts);
             return;
         }
         if (ds.hire) {
             const sel = $(`[data-hire-rank="${ds.hire}"]`);
-            const res = await this.action('hire', { target: Number(ds.hire), rank: sel ? sel.value : null }, { noRender: true });
+            const res = await this.action('hire', { target: Number(ds.hire), rank: sel ? sel.value : null }, { noRender: true, button: el });
             if (res && res.ok && this.st.players) {
                 this.st.players = this.st.players.filter((p) => String(p.id) !== ds.hire);
                 this.render();
@@ -1454,7 +1511,7 @@ Views.management = {
             return;
         }
         if (ds.savePerms) {
-            const res = await this.action('setPermissions', { identifier: ds.savePerms, permissions: this.st.permDraft });
+            const res = await this.action('setPermissions', { identifier: ds.savePerms, permissions: this.st.permDraft }, btnOpts);
             if (res && res.ok) {
                 this.st.expanded = null;
                 this.render();
@@ -1468,7 +1525,7 @@ Views.management = {
         }
         if (ds.fire) {
             this.st.confirmFire = null;
-            this.action('fire', { identifier: ds.fire });
+            this.action('fire', { identifier: ds.fire }, btnOpts);
             return;
         }
         if (ds.m) {
@@ -1482,30 +1539,35 @@ Views.management = {
             const seg = $(`[data-seg="${kind}"] .active`);
             const amount = Math.floor(Number(input.value) || 0);
             if (amount <= 0) return;
-            this.action(kind, { amount, method: seg ? seg.dataset.m : 'bank' });
+            this.action(kind, { amount, method: seg ? seg.dataset.m : 'bank' }, btnOpts);
             return;
         }
         if (ds.page) {
             const kind = ds.page;
             const current = kind === 'sales' ? this.d.sales : this.d.finance;
             const page = current.page + Number(ds.dir);
+            this.st.loadingTable = kind;
+            this.render();
             const res = await this.action(kind === 'sales' ? 'salesPage' : 'financePage', { page }, { noRender: true });
-            if (res && res.ok && this.d) {
+            if (!this.d) return;
+            this.st.loadingTable = null;
+            if (res && res.ok) {
                 if (kind === 'sales') this.d.sales = res.data;
                 else this.d.finance = res.data;
-                this.render();
             }
+            this.render();
         }
     },
 
-    async onAct(act) {
+    async onAct(act, el) {
+        const opts = { button: el && (el.classList.contains('btn') || el.classList.contains('icon-btn')) ? el : null };
         switch (act) {
-            case 'refresh': return this.action('refresh');
-            case 'toggleOpen': return this.action('toggleOpen');
-            case 'duty': return this.action('duty');
+            case 'refresh': return this.action('refresh', {}, opts);
+            case 'toggleOpen': return this.action('toggleOpen', {}, opts);
+            case 'duty': return this.action('duty', {}, opts);
             case 'orderFuel': {
                 const { o } = this.orderState();
-                const res = await this.action('orderFuel', { fuelType: o.fuel, liters: o.liters, method: o.method });
+                const res = await this.action('orderFuel', { fuelType: o.fuel, liters: o.liters, method: o.method }, opts);
                 if (res && res.ok) {
                     this.st.order.liters = null;
                     this.render();
@@ -1529,14 +1591,14 @@ Views.management = {
             }
             case 'rename': {
                 const input = $('#rename-input');
-                return this.action('rename', { label: input ? input.value : '' });
+                return this.action('rename', { label: input ? input.value : '' }, opts);
             }
             case 'sellAsk': this.st.confirmSell = true; return this.render();
             case 'sellCancel': this.st.confirmSell = false; return this.render();
-            case 'sell': return this.action('sell', { confirm: this.d.station.id });
+            case 'sell': return this.action('sell', { confirm: this.d.station.id }, opts);
             case 'quitAsk': this.st.confirmQuit = true; return this.render();
             case 'quitCancel': this.st.confirmQuit = false; return this.render();
-            case 'quit': return this.action('quit');
+            case 'quit': return this.action('quit', {}, opts);
             default: return null;
         }
     },
@@ -1583,7 +1645,7 @@ Views.purchase = {
             </div>
             <div class="win-foot"><span class="muted" style="flex:1;font-size:13px">${esc(t('buy_terms'))}</span>
                 <button class="btn btn-ghost" data-close-view="purchase">${esc(t('cancel'))}</button>
-                <button class="btn btn-primary" data-buy ${this.busy || limit || balance < d.price ? 'disabled' : ''}>${icon('check')}${esc(t('buy_confirm'))}</button></div>`;
+                <button class="btn btn-primary ${this.busy ? 'is-loading' : ''}" data-buy ${!this.busy && (limit || balance < d.price) ? 'disabled' : ''}>${icon('check')}${esc(this.busy ? t('buy_processing') : t('buy_confirm'))}</button></div>`;
     },
 
     async onClick(e) {
@@ -1642,7 +1704,7 @@ Views.board = {
                     <div><div class="o-station">${esc(o.station)}</div>
                         <div class="o-meta"><span>${icon('droplet')}${fmtNum(o.liters)} ${unitLabel(o.fuel.unit)} ${esc(o.fuel.label)}</span><span>${icon('route')}${fmtNum(o.distance / 1000, 1)} km</span><span>#${o.id}</span></div></div>
                     <div class="o-reward"><div class="eyebrow">${esc(t('board_reward'))}</div><div class="v num">${fmtMoney(o.reward)}</div></div>
-                    <button class="btn btn-primary" data-accept="${o.id}" ${job || !d.canWork || this.busy ? 'disabled' : ''}>${esc(t('board_accept'))}</button>
+                    <button class="btn btn-primary ${this.pending === o.id ? 'is-loading' : ''}" data-accept="${o.id}" ${job || !d.canWork || (this.busy && this.pending !== o.id) ? 'disabled' : ''}>${icon('truck')}${esc(this.pending === o.id ? t('board_accepting') : t('board_accept'))}</button>
                 </div>`).join('');
         }
         win.innerHTML = `
@@ -1655,9 +1717,11 @@ Views.board = {
         const accept = e.target.closest('[data-accept]');
         if (accept && !accept.disabled && !this.busy) {
             this.busy = true;
+            this.pending = Number(accept.dataset.accept);
             this.render();
-            const res = await post('board:accept', { orderId: Number(accept.dataset.accept) });
+            const res = await post('board:accept', { orderId: this.pending });
             this.busy = false;
+            this.pending = null;
             if (!res || !res.ok) this.render((res && res.message) || t('error_internal'));
             return;
         }
@@ -1736,7 +1800,8 @@ window.addEventListener('message', (event) => {
     const data = msg.data || {};
     switch (msg.action) {
         case 'init': init(data); break;
-        case 'open': if (Views[data.view]) Views[data.view].open(data.data || {}); break;
+        case 'open': Loader.hide(); if (Views[data.view]) Views[data.view].open(data.data || {}); break;
+        case 'loading': if (data.show) Loader.show(data.label); else Loader.hide(); break;
         case 'close': Modals.close(data.view, false); break;
         case 'closeAll': Modals.closeAll(); break;
         case 'notify': Toasts.show(data.message, data.type); break;

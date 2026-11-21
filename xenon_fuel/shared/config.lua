@@ -207,7 +207,7 @@ Config.Blips = {
     Colors = {
         public = 4,                 -- veřejná / nevlastněná benzinka
         owned = 2,                  -- benzinka vlastněná hráčem
-        mine = 5,                   -- moje benzinka / kde pracuji
+        mine = 3,                   -- moje benzinka / kde pracuji
         closed = 40,                -- zavřená benzinka
     },
 }
@@ -315,7 +315,7 @@ Config.TankerJob = {
         label = 'Distribuční sklad paliv',
         coords = vector3(557.93, -2327.90, 5.83),
         ped = { model = 's_m_m_trucker_01', coords = vector4(557.93, -2327.90, 4.83, 230.0) },
-        blip = { sprite = 477, color = 47, scale = 0.75 },
+        blip = { sprite = 477, color = 38, scale = 0.75 },
         -- Místo výdeje vozidel (najde se nejbližší silniční uzel)
         vehicleSpawn = vector4(571.54, -2309.70, 5.90, 0.0),
         -- Plnicí stanoviště cisteren

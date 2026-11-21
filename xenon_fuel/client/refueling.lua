@@ -190,7 +190,7 @@ function Refueling.OpenMenu(vehicle)
     local netId = NetworkGetNetworkIdFromEntity(vehicle)
     local class = GetVehicleClass(vehicle)
     local pump = pumpPayload(holding.pump)
-    local result = Client.Call('getRefuelQuote', holding.pump.stationId, pump, netId, class)
+    local result = Client.CallWithLoading(L('loading_refuel'), 'getRefuelQuote', holding.pump.stationId, pump, netId, class)
     if not result.ok then
         return Notify(result.message, 'error')
     end

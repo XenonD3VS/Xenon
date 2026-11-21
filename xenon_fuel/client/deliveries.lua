@@ -31,9 +31,9 @@ local function setRoute(coords, label)
     clearRoute()
     routeBlip = AddBlipForCoord(coords.x, coords.y, coords.z)
     SetBlipSprite(routeBlip, 1)
-    SetBlipColour(routeBlip, 5)
+    SetBlipColour(routeBlip, 3)
     SetBlipRoute(routeBlip, true)
-    SetBlipRouteColour(routeBlip, 5)
+    SetBlipRouteColour(routeBlip, 3)
     BeginTextCommandSetBlipName('STRING')
     AddTextComponentSubstringPlayerName(label)
     EndTextCommandSetBlipName(routeBlip)
@@ -117,7 +117,7 @@ end
 -- Dispečink (NPC + blip)
 ---------------------------------------------------------------------------------------------------
 local function openBoard()
-    local result = Client.Call('getJobBoard')
+    local result = Client.CallWithLoading(L('loading_board'), 'getJobBoard')
     if not result.ok then return Notify(result.message, 'error') end
     Nui.Open('board', result.data)
 end

@@ -135,6 +135,14 @@ function Client.Call(name, ...)
     return result
 end
 
+--- Volání serveru s načítací animací (zobrazí se jen pokud odpověď trvá déle než ~140 ms)
+function Client.CallWithLoading(label, name, ...)
+    Nui.Send('loading', { show = true, label = label })
+    local result = Client.Call(name, ...)
+    Nui.Send('loading', { show = false })
+    return result
+end
+
 --- Vlastní průběh akce (nakládka / vykládka) v designu scriptu. Vrací true po dokončení.
 local progressActive = false
 function Client.Progress(duration, label, scenario)
@@ -182,7 +190,7 @@ end)
 -- Historie tankování
 ---------------------------------------------------------------------------------------------------
 RegisterNetEvent('xenon_fuel:client:openHistory', function()
-    local result = Client.Call('getHistory')
+    local result = Client.CallWithLoading(L('loading_history'), 'getHistory')
     if not result.ok then
         return Notify(result.message, 'error')
     end

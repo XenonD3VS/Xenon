@@ -12,7 +12,7 @@ Management = {
 ---------------------------------------------------------------------------------------------------
 function Management.Open(stationId)
     if not stationId or Management.stationId then return end
-    local result = Client.Call('openManagement', stationId)
+    local result = Client.CallWithLoading(L('loading_management'), 'openManagement', stationId)
     if not result.ok then
         return Notify(result.message, 'error')
     end
@@ -56,7 +56,7 @@ end
 ---------------------------------------------------------------------------------------------------
 function Management.OpenPurchase(stationId)
     if not stationId then return end
-    local result = Client.Call('getPurchaseInfo', stationId)
+    local result = Client.CallWithLoading(L('loading_purchase'), 'getPurchaseInfo', stationId)
     if not result.ok then
         return Notify(result.message, 'error')
     end
