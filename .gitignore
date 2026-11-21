@@ -4,3 +4,4 @@ tools/cwconv/bin/
 tools/cwconv/obj/
 __pycache__/
 *.pyc
+xenon_police.zip
