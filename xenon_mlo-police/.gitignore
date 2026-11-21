@@ -1,0 +1,4 @@
+tools/CodeWalker/
+tools/cwconv/bin/
+tools/cwconv/obj/
+source/__pycache__/

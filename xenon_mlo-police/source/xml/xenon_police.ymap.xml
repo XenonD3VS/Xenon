@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CMapData>
+  <name>xenon_police</name>
+  <parent />
+  <flags value="0" />
+  <contentFlags value="9" />
+  <streamingExtentsMin x="-1921.5" y="-3083" z="-287.05" />
+  <streamingExtentsMax x="-1286.5" y="-2454.5" z="317.95" />
+  <entitiesExtentsMin x="-1621.5" y="-2783" z="12.95" />
+  <entitiesExtentsMax x="-1586.5" y="-2754.5" z="17.95" />
+  <entities>
+    <Item type="CEntityDef">
+      <archetypeName>xenon_police_ext</archetypeName>
+      <flags value="1572864" />
+      <guid value="1491116033" />
+      <position x="-1620" y="-2780" z="13.95" />
+      <rotation x="0" y="0" z="0" w="1" />
+      <scaleXY value="1" />
+      <scaleZ value="1" />
+      <parentIndex value="-1" />
+      <lodDist value="500" />
+      <childLodDist value="0" />
+      <lodLevel>LODTYPES_DEPTH_ORPHANHD</lodLevel>
+      <numChildren value="0" />
+      <priorityLevel>PRI_REQUIRED</priorityLevel>
+      <extensions />
+      <ambientOcclusionMultiplier value="255" />
+      <artificialAmbientOcclusion value="255" />
+      <tintValue value="0" />
+    </Item>
+    <Item type="CMloInstanceDef">
+      <archetypeName>xenon_police_mlo</archetypeName>
+      <flags value="1572864" />
+      <guid value="1491116034" />
+      <position x="-1620" y="-2780" z="13.95" />
+      <rotation x="0" y="0" z="0" w="1" />
+      <scaleXY value="1" />
+      <scaleZ value="1" />
+      <parentIndex value="-1" />
+      <lodDist value="300" />
+      <childLodDist value="0" />
+      <lodLevel>LODTYPES_DEPTH_ORPHANHD</lodLevel>
+      <numChildren value="0" />
+      <priorityLevel>PRI_REQUIRED</priorityLevel>
+      <extensions />
+      <ambientOcclusionMultiplier value="255" />
+      <artificialAmbientOcclusion value="255" />
+      <tintValue value="0" />
+      <groupId value="0" />
+      <floorId value="0" />
+      <defaultEntitySets />
+      <numExitPortals value="2" />
+      <MLOInstflags value="0" />
+    </Item>
+  </entities>
+  <containerLods />
+  <boxOccluders />
+  <occludeModels />
+  <physicsDictionaries />
+  <instancedData>
+    <ImapLink />
+    <PropInstanceList />
+    <GrassInstanceList />
+  </instancedData>
+  <timeCycleModifiers />
+  <carGenerators />
+  <LODLightsSOA>
+    <direction />
+    <falloff />
+    <falloffExponent />
+    <timeAndStateFlags />
+    <hash />
+    <coneInnerAngle />
+    <coneOuterAngleOrCapExt />
+    <coronaIntensity />
+  </LODLightsSOA>
+  <DistantLODLightsSOA>
+    <position />
+    <RGBI />
+    <numStreetLights value="0" />
+    <category value="0" />
+  </DistantLODLightsSOA>
+  <block>
+    <version value="0" />
+    <flags value="0" />
+    <name>xenon_police</name>
+    <exportedBy>xenon_mlo-police generator</exportedBy>
+    <owner />
+    <time />
+  </block>
+</CMapData>
