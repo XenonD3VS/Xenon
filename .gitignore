@@ -1,0 +1,6 @@
+_deps/
+_build/
+tools/cwconv/bin/
+tools/cwconv/obj/
+__pycache__/
+*.pyc
